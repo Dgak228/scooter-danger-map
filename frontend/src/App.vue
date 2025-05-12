@@ -1,6 +1,8 @@
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import LeafletHeatmap from './components/LeafletHeatmap.vue'
+import { ElNotification } from 'element-plus'
 
 const form = ref({
   date: '',
@@ -18,23 +20,28 @@ const rules = {
 }
 
 const dtpList = ref([])
-
-const notification = reactive({
-  visible: false,
-  title: '',
-  message: '',
-  type: 'success'
-})
+const heatmapPoints = ref([])
 
 const fetchDtp = async () => {
   try {
     const res = await axios.get('http://localhost:5000/api/dtp/list')
     dtpList.value = res.data
   } catch (e) {
-    notification.visible = true
-    notification.title = 'Ошибка'
-    notification.message = 'Не удалось загрузить данные'
-    notification.type = 'error'
+    ElNotification({
+      title: 'Ошибка',
+      message: 'Не удалось загрузить данные',
+      type: 'error',
+      duration: 2500
+    })
+  }
+}
+
+const fetchHeatmapPoints = async () => {
+  try {
+    const res = await axios.get('http://localhost:5000/api/dtp')
+    heatmapPoints.value = res.data
+  } catch (e) {
+    // не показываем уведомление, чтобы не мешать работе таблицы
   }
 }
 
@@ -50,22 +57,28 @@ const onSubmit = async () => {
         injured: form.value.injured
       })
       form.value = { date: '', time: '', street: '', house: '', injured: false }
-      notification.visible = true
-      notification.title = 'Успех'
-      notification.message = 'Инцидент добавлен'
-      notification.type = 'success'
+      ElNotification({
+        title: 'Успех',
+        message: 'Инцидент добавлен',
+        type: 'success',
+        duration: 2500
+      })
       fetchDtp()
+      fetchHeatmapPoints()
     } catch (e) {
-      notification.visible = true
-      notification.title = 'Ошибка'
-      notification.message = 'Не удалось добавить инцидент'
-      notification.type = 'error'
+      ElNotification({
+        title: 'Ошибка',
+        message: 'Не удалось добавить инцидент',
+        type: 'error',
+        duration: 2500
+      })
     }
   })
 }
 
 onMounted(() => {
   fetchDtp()
+  fetchHeatmapPoints()
 })
 </script>
 
@@ -73,66 +86,15 @@ onMounted(() => {
   <div>
     <header class="main-header">
       <h2 class="site-title">Карта опасных зон — Электросамокаты Краснодар</h2>
+      <nav class="main-nav">
+        <router-link to="/" class="nav-link" active-class="active" exact>Главная</router-link>
+        <router-link to="/dtp" class="nav-link" active-class="active">ДТП</router-link>
+        <router-link to="/add" class="nav-link" active-class="active">Добавить ДТП</router-link>
+      </nav>
     </header>
     <div class="main-content">
-      <el-row :gutter="24" class="main-row">
-        <el-col :xs="24" :md="16">
-          <el-card shadow="hover">
-            <h3>Карта происшествий</h3>
-            <div class="map-placeholder">
-              [Карта будет здесь]
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :md="8">
-          <el-card shadow="hover">
-            <h3>Добавить инцидент</h3>
-            <el-form :model="form" label-width="110px" @submit.prevent="onSubmit" :rules="rules" ref="formRef">
-              <el-form-item label="Дата" prop="date">
-                <el-date-picker v-model="form.date" type="date" placeholder="Выберите дату" style="width: 100%" />
-              </el-form-item>
-              <el-form-item label="Время" prop="time">
-                <el-time-picker v-model="form.time" placeholder="Выберите время" style="width: 100%" />
-              </el-form-item>
-              <el-form-item label="Улица" prop="street">
-                <el-input v-model="form.street" placeholder="Улица" />
-              </el-form-item>
-              <el-form-item label="Дом" prop="house">
-                <el-input v-model="form.house" placeholder="Дом" />
-              </el-form-item>
-              <el-form-item>
-                <el-checkbox v-model="form.injured">Есть пострадавшие</el-checkbox>
-              </el-form-item>
-              <el-form-item>
-                <el-button type="primary" @click="onSubmit" style="width: 100%">Добавить</el-button>
-              </el-form-item>
-            </el-form>
-          </el-card>
-        </el-col>
-      </el-row>
-      <el-row style="margin-top: 32px;">
-        <el-col :span="24">
-          <el-card shadow="hover">
-            <h3>Список инцидентов</h3>
-            <el-table :data="dtpList" style="width: 100%" stripe border empty-text="Нет данных">
-              <el-table-column prop="date" label="Дата" width="110" />
-              <el-table-column prop="time" label="Время" width="110" />
-              <el-table-column prop="street" label="Улица" />
-              <el-table-column prop="house" label="Дом" width="90" />
-              <el-table-column prop="injured" label="Пострадавшие" width="140">
-                <template #default="scope">
-                  <el-tag :type="scope.row.injured ? 'danger' : 'success'" effect="dark">
-                    {{ scope.row.injured ? 'Да' : 'Нет' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-card>
-        </el-col>
-      </el-row>
-      <el-backtop :right="40" :bottom="40" />
+      <router-view />
     </div>
-    <el-notification v-if="notification.visible" :title="notification.title" :type="notification.type" :message="notification.message" :duration="2500" @close="notification.visible = false" />
   </div>
 </template>
 
@@ -152,6 +114,7 @@ body {
   display: flex;
   align-items: center;
   padding: 0 32px;
+  justify-content: space-between;
 }
 .site-title {
   margin: 0;
@@ -160,6 +123,23 @@ body {
   color: #222;
   letter-spacing: 0.01em;
   line-height: 64px;
+}
+.main-nav {
+  display: flex;
+  gap: 24px;
+}
+.nav-link {
+  color: #222;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 1.1rem;
+  padding: 6px 18px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+.nav-link.active, .nav-link.router-link-exact-active {
+  background: #409eff;
+  color: #fff;
 }
 .main-content {
   max-width: 1200px;
@@ -198,6 +178,13 @@ body {
   }
   .main-content {
     padding-top: 56px;
+  }
+  .main-nav {
+    gap: 8px;
+  }
+  .nav-link {
+    font-size: 0.95rem;
+    padding: 4px 10px;
   }
 }
 </style>

@@ -14,10 +14,10 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT,
         time TEXT,
-        street TEXT,
-        house TEXT,
+        address TEXT,
         injured INTEGER
     )''')
+    c.execute('DELETE FROM dtp')
     conn.commit()
     conn.close()
 
@@ -27,13 +27,12 @@ init_db()
 def get_dtp_points():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT date, time, street, house, injured FROM dtp')
+    c.execute('SELECT date, time, address, injured FROM dtp')
     rows = c.fetchall()
     conn.close()
     points = []
     for row in rows:
-        date, time_, street, house, injured = row
-        address = f'Краснодар, {street} {house}'
+        date, time_, address, injured = row
         geo_url = f'https://geocode-maps.yandex.ru/1.x/?apikey=391e84dc-21f8-4978-b1ec-45fc67e8bde3&geocode={address}&format=json'
         try:
             geo_resp = requests.get(geo_url)
@@ -46,7 +45,7 @@ def get_dtp_points():
             points.append({
                 'lat': lat,
                 'lon': lon,
-                'desc': f'{date} {time_}, {street} {house}, Пострадавшие: {"Да" if injured else "Нет"}'
+                'desc': f'{date} {time_}, {address}, Пострадавшие: {"Да" if injured else "Нет"}'
             })
         except Exception:
             continue
@@ -57,13 +56,12 @@ def add_dtp():
     data = request.json
     date = data.get('date')
     time_ = data.get('time')
-    street = data.get('street')
-    house = data.get('house')
+    address = data.get('address')
     injured = 1 if data.get('injured') else 0
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('INSERT INTO dtp (date, time, street, house, injured) VALUES (?, ?, ?, ?, ?)',
-              (date, time_, street, house, injured))
+    c.execute('INSERT INTO dtp (date, time, address, injured) VALUES (?, ?, ?, ?)',
+              (date, time_, address, injured))
     conn.commit()
     conn.close()
     return jsonify({'status': 'success'})
@@ -72,17 +70,16 @@ def add_dtp():
 def get_dtp_list():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('SELECT date, time, street, house, injured FROM dtp ORDER BY id DESC')
+    c.execute('SELECT date, time, address, injured FROM dtp ORDER BY id DESC')
     rows = c.fetchall()
     conn.close()
     result = []
     for row in rows:
-        date, time_, street, house, injured = row
+        date, time_, address, injured = row
         result.append({
             'date': date,
             'time': time_,
-            'street': street,
-            'house': house,
+            'address': address,
             'injured': bool(injured)
         })
     return jsonify(result)
