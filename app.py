@@ -2,6 +2,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import requests
 import sqlite3
+import random
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -21,7 +23,29 @@ def init_db():
     conn.commit()
     conn.close()
 
+def fill_random_dtps():
+    streets = [
+        'Красная', 'Северная', 'Ставропольская', 'Калинина', 'Тургенева',
+        'Гагарина', 'Зиповская', '40 лет Победы', 'Мачуги', 'Дзержинского',
+        'Будённого', 'Коммунаров', 'Ленина', 'Мира', 'Головатого',
+        'Седина', 'Пушкина', 'Чапаева', 'Яна Полуяна', 'Московская'
+    ]
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    for _ in range(50):
+        date = (datetime.now() - timedelta(days=random.randint(0, 365))).strftime('%Y-%m-%d')
+        time_ = f"{random.randint(0,23):02d}:{random.randint(0,59):02d}"
+        street = random.choice(streets)
+        house = str(random.randint(10, 50))
+        address = f"{street}, {house}"
+        injured = random.randint(0, 1)
+        c.execute('INSERT INTO dtp (date, time, address, injured) VALUES (?, ?, ?, ?)',
+                  (date, time_, address, injured))
+    conn.commit()
+    conn.close()
+
 init_db()
+fill_random_dtps()
 
 @app.route('/api/dtp', methods=['GET'])
 def get_dtp_points():
