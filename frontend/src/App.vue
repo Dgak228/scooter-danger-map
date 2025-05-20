@@ -1,27 +1,36 @@
-<script setup>
-// пусто, всё лишнее удалено
+<script>
+import RouteMap from './components/RouteMap.vue'
+
+export default {
+  name: 'App',
+  components: {
+    RouteMap
+  }
+}
 </script>
 
 <template>
-  <div>
-    <header class="main-header">
-      <h2 class="site-title">Карта опасных зон — Электросамокаты Краснодар</h2>
-      <nav class="main-nav">
-        <router-link to="/" class="nav-link" active-class="active" exact>Главная</router-link>
-        <router-link to="/dtp" class="nav-link" active-class="active">ДТП</router-link>
-        <router-link to="/add" class="nav-link" active-class="active">Добавить ДТП</router-link>
-      </nav>
-    </header>
-    <div class="main-content">
-      <router-view />
-    </div>
+  <div id="app">
+    <RouteMap />
   </div>
 </template>
 
 <style>
-body {
-  background: #f0f2f5;
+#app {
+  font-family: Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
 }
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
 .main-header {
   position: fixed;
   top: 0;

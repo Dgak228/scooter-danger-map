@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Карта ДТП с самокатами</title>
+    <meta charset="utf-8">
+    <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=7ebca4eb-7e57-4d26-8957-ea7a04fbdead" type="text/javascript"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div id="map"></div>
+    <div class="controls">
+        <input type="text" id="startAddress" placeholder="Начальный адрес">
+        <input type="text" id="endAddress" placeholder="Конечный адрес">
+        <button id="buildRoute">Построить маршрут</button>
+    </div>
+    <script src="{{ url_for('static', filename='js/map.js') }}"></script>
+</body>
+</html> 

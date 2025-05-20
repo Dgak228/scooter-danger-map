@@ -4,10 +4,12 @@ import requests
 import sqlite3
 import random
 from datetime import datetime, timedelta
+import urllib.parse
 
 app = Flask(__name__)
 CORS(app)
 DB_PATH = 'dtp.db'
+API_KEY = "7ebca4eb-7e57-4d26-8957-ea7a04fbdead"
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -44,6 +46,27 @@ def fill_random_dtps():
     conn.commit()
     conn.close()
 
+def get_coordinates(address):
+    encoded_address = urllib.parse.quote(address)
+    geo_url = f'https://geocode-maps.yandex.ru/1.x/?format=json&apikey={API_KEY}&geocode={encoded_address}'
+    print(f"Geocoding URL: {geo_url}")
+    try:
+        geo_resp = requests.get(geo_url)
+        if geo_resp.status_code != 200:
+            print(f"Error response from geocoder: {geo_resp.text}")
+            return None
+        geo_data = geo_resp.json()
+        feature_members = geo_data['response']['GeoObjectCollection']['featureMember']
+        if not feature_members:
+            print(f"No features found for address: {address}")
+            return None
+        pos = feature_members[0]['GeoObject']['Point']['pos']
+        coords = pos.split()
+        return [float(coords[1]), float(coords[0])]
+    except Exception as e:
+        print(f"Geocoding error for address {address}: {str(e)}")
+        return None
+
 init_db()
 fill_random_dtps()
 
@@ -57,7 +80,7 @@ def get_dtp_points():
     points = []
     for row in rows:
         date, time_, address, injured = row
-        geo_url = f'https://geocode-maps.yandex.ru/1.x/?apikey=391e84dc-21f8-4978-b1ec-45fc67e8bde3&geocode={address}&format=json'
+        geo_url = f'https://geocode-maps.yandex.ru/1.x/?apikey={API_KEY}&geocode={address}&format=json'
         try:
             geo_resp = requests.get(geo_url)
             geo_data = geo_resp.json()
@@ -107,6 +130,78 @@ def get_dtp_list():
             'injured': bool(injured)
         })
     return jsonify(result)
+
+@app.route('/api/route', methods=['POST'])
+def get_route():
+    try:
+        data = request.json
+        if not data:
+            print("Error: No JSON data received")
+            return jsonify({'error': 'Не получены данные запроса'}), 400
+
+        start_address = data.get('start')
+        end_address = data.get('end')
+        
+        if not start_address or not end_address:
+            print("Error: Missing start or end address")
+            return jsonify({'error': 'Не указан начальный или конечный адрес'}), 400
+        
+        print(f"Processing request - Start: {start_address}, End: {end_address}")
+        
+        # Добавляем "Краснодар" к адресам, если не указан город
+        if 'краснодар' not in start_address.lower():
+            start_address = f"Краснодар, {start_address}"
+        if 'краснодар' not in end_address.lower():
+            end_address = f"Краснодар, {end_address}"
+            
+        print(f"Modified addresses - Start: {start_address}, End: {end_address}")
+        
+        # Используем глобальную функцию get_coordinates с apikey
+        start_coords = get_coordinates(start_address)
+        if not start_coords:
+            print(f"Error: Could not geocode start address: {start_address}")
+            return jsonify({'error': f'Не удалось определить координаты начального адреса: {start_address}'}), 400
+            
+        end_coords = get_coordinates(end_address)
+        if not end_coords:
+            print(f"Error: Could not geocode end address: {end_address}")
+            return jsonify({'error': f'Не удалось определить координаты конечного адреса: {end_address}'}), 400
+        
+        print(f"Successfully geocoded - Start: {start_coords}, End: {end_coords}")
+
+        # Получаем все точки ДТП
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute('SELECT address FROM dtp')
+            dtp_addresses = c.fetchall()
+            conn.close()
+        except Exception as e:
+            print(f"Database error: {str(e)}")
+            return jsonify({'error': 'Ошибка при получении данных о ДТП'}), 500
+
+        # Получаем координаты всех точек ДТП
+        dtp_points = []
+        for address in dtp_addresses:
+            coords = get_coordinates(address[0])
+            if coords:
+                dtp_points.append(coords)
+                
+        print(f"Found {len(dtp_points)} DTP points")
+
+        # Формируем ответ с координатами
+        response = {
+            'start': start_coords,
+            'end': end_coords,
+            'dtp_points': [{'lat': point[0], 'lon': point[1]} for point in dtp_points]
+        }
+        
+        print(f"Sending response: {response}")
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return jsonify({'error': f'Произошла ошибка при обработке запроса: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
