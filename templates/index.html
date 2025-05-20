@@ -8,6 +8,9 @@
     <!-- Подключаем Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
+    <!-- Подключаем API Яндекс.Карт -->
+    <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=7ebca4eb-7e57-4d26-8957-ea7a04fbdead" type="text/javascript"></script>
+    
     <!-- Стили для интерфейса -->
     <style>
         /* Общие стили */
@@ -62,31 +65,54 @@
         }
 
         .tab-content {
-    display: none; /* Скрываем все вкладки по умолчанию */
-    padding: 0;    /* Убираем отступы */
-    height: calc(100vh - 120px); /* Высота с учетом шапки и вкладок */
-}
-
-.tab-content.active {
-    display: block; /* Показываем активную вкладку */
-}
-
-/* Карта */
-#map {
-    width: 100%;
-    height: 100%; /* Карта занимает всё доступное пространство */
-}
-
-        /* Карта */
-        #map-container {
-            display: flex;
-            flex-direction: column;
-            height: calc(100vh - 120px); /* Высота карты с учетом шапки и вкладок */
+            display: none; /* Скрываем все вкладки по умолчанию */
+            padding: 0;    /* Убираем отступы */
+            height: calc(100vh - 120px); /* Высота с учетом шапки и вкладок */
         }
 
-        #map {
+        .tab-content.active {
+            display: block; /* Показываем активную вкладку */
+        }
+
+        /* Карты */
+        #map, #route-map {
             width: 100%;
-            height: 100%; /* Убедись, что высота задана */
+            height: 100%;
+        }
+
+        /* Контролы для маршрута */
+        .route-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .route-controls input {
+            width: 250px;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .route-controls button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            background-color: #004494;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .route-controls button:hover {
+            background-color: #005fa3;
         }
 
         /* Новости */
@@ -118,7 +144,8 @@
 
     <!-- Вкладки -->
     <nav>
-        <a href="#" class="active" data-tab="map-tab">Карта</a>
+        <a href="#" class="active" data-tab="map-tab">Тепловая карта</a>
+        <a href="#" data-tab="route-tab">Построение маршрута</a>
         <a href="#" data-tab="statistics-tab">Статистика</a>
         <a href="#" data-tab="about-tab">О проекте</a>
         <a href="#" data-tab="news-tab">Новости</a>
@@ -126,9 +153,19 @@
 
     <!-- Контейнер для содержимого -->
     <div id="tab-container">
-        <!-- Карта -->
+        <!-- Тепловая карта (Leaflet) -->
         <div id="map-tab" class="tab-content active">
             <div id="map"></div>
+        </div>
+
+        <!-- Маршруты (Яндекс.Карты) -->
+        <div id="route-tab" class="tab-content">
+            <div class="route-controls">
+                <input type="text" id="startAddress" placeholder="Начальный адрес">
+                <input type="text" id="endAddress" placeholder="Конечный адрес">
+                <button id="buildRoute">Построить маршрут</button>
+            </div>
+            <div id="route-map"></div>
         </div>
 
         <!-- Статистика -->
@@ -174,6 +211,11 @@
                 if (tabId === 'news-tab') {
                     loadNews();
                 }
+                
+                // Если выбрана вкладка "Маршрут", инициализируем Яндекс.Карту
+                if (tabId === 'route-tab' && !window.routeMap) {
+                    initRouteMap();
+                }
             });
         });
 
@@ -183,7 +225,7 @@
                 .then(response => response.json())
                 .then(data => {
                     const newsList = document.getElementById('news-list');
-                    newsList.innerHTML = ''; // Очищаем список новостей
+                    newsList.innerHTML = '';
 
                     data.forEach(item => {
                         const newsItem = document.createElement('div');
@@ -200,34 +242,111 @@
                 });
         }
 
-        // Инициализация карты (центрируем на Краснодаре)
-        const map = L.map('map').setView([45.0448, 38.9760], 12); // Масштаб 12 для города
+        // Инициализация тепловой карты (Leaflet)
+        const map = L.map('map').setView([45.0448, 38.9760], 12);
 
-        // Добавляем подложку OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Загружаем данные с сервера
         fetch('/data')
             .then(response => response.json())
             .then(data => {
                 data.forEach(zone => {
-                    // Рисуем круги на карте
                     const circle = L.circle([zone.lat, zone.lon], {
                         color: 'red',
                         fillColor: '#f03',
                         fillOpacity: 0.5,
-                        radius: zone.count * 100  // Размер зависит от количества самокатов
+                        radius: zone.count * 100
                     }).addTo(map);
 
-                    // Добавляем всплывающую подсказку
                     circle.bindPopup(`Количество самокатов: ${zone.count}`);
                 });
             })
             .catch(error => {
                 console.error('Ошибка загрузки данных:', error);
             });
+
+        // Инициализация карты для маршрутов (Яндекс.Карты)
+        function initRouteMap() {
+            window.routeMap = new ymaps.Map('route-map', {
+                center: [45.0448, 38.9760],
+                zoom: 12,
+                controls: ['zoomControl', 'fullscreenControl']
+            });
+
+            // Добавляем поиск по карте
+            var searchControl = new ymaps.control.SearchControl({
+                options: {
+                    provider: 'yandex#search'
+                }
+            });
+            window.routeMap.controls.add(searchControl);
+
+            // Обработчик кнопки построения маршрута
+            document.getElementById('buildRoute').addEventListener('click', function() {
+                const startAddress = document.getElementById('startAddress').value;
+                const endAddress = document.getElementById('endAddress').value;
+
+                if (!startAddress || !endAddress) {
+                    alert('Пожалуйста, введите начальный и конечный адреса');
+                    return;
+                }
+
+                // Очищаем предыдущий маршрут
+                window.routeMap.geoObjects.removeAll();
+
+                // Запрашиваем маршрут
+                fetch('/api/route', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        start: startAddress,
+                        end: endAddress
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Ошибка: ' + data.error);
+                        return;
+                    }
+
+                    // Добавляем маршрут на карту
+                    var multiRoute = new ymaps.multiRouter.MultiRoute({
+                        referencePoints: [startAddress, endAddress],
+                        params: {
+                            routingMode: 'bicycle'
+                        }
+                    }, {
+                        boundsAutoApply: true
+                    });
+
+                    window.routeMap.geoObjects.add(multiRoute);
+
+                    // Добавляем точки ДТП
+                    data.dtp_points.forEach(point => {
+                        var placemark = new ymaps.Placemark([point.lat, point.lon], {}, {
+                            preset: 'islands#redDotIcon'
+                        });
+                        window.routeMap.geoObjects.add(placemark);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Произошла ошибка при построении маршрута');
+                });
+            });
+        }
+
+        // Инициализируем Яндекс.Карты
+        ymaps.ready(() => {
+            if (document.getElementById('route-tab').classList.contains('active')) {
+                initRouteMap();
+            }
+        });
     </script>
 </body>
 </html>
